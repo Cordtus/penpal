@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/doggystylez/penpal/internal/config"
-	"github.com/doggystylez/penpal/internal/scan"
+	"github.com/Cordtus/penpal/internal/config"
+	"github.com/Cordtus/penpal/internal/scan"
 )
 
 func main() {
