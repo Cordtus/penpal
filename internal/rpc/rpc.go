@@ -25,7 +25,7 @@ func GetLatestBlock(url string, client *http.Client) (responseData Block, err er
 }
 
 func GetBlockFromHeight(height string, url string, client *http.Client) (responseData Block, err error) {
-	err = getByUrlAndUnmarshall(&responseData, url+"/block?height="+height, client)
+	err = GetByUrlAndUnmarshall(&responseData, url+"/block?height="+height, client)
 	return
 }
 
