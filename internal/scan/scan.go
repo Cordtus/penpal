@@ -1,15 +1,15 @@
 package scan
 
 import (
+	"context"
 	"log"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/doggystylez/penpal/internal/alert"
-	"github.com/doggystylez/penpal/internal/config"
-	"github.com/doggystylez/penpal/internal/rpc"
+	"github.com/Cordtus/penpal/internal/alert"
+	"github.com/Cordtus/penpal/internal/config"
+	"github.com/Cordtus/penpal/internal/rpc"
 )
 
 func Monitor(cfg config.Config) {
@@ -47,63 +47,38 @@ func scanNetwork(network config.Network, alertChan chan<- alert.Alert, client *h
 
 func checkNetwork(network config.Network, client *http.Client, alerted *bool, alertChan chan<- alert.Alert) {
 	var (
-		chainId string
+		chainID string
 		height  string
 		url     string
 		err     error
 	)
 	rpcs := network.Rpcs
 	if len(rpcs) > 1 {
-		for {
-			var i int
-			var nRpcs []string
-			if len(rpcs) == 0 && !*alerted {
-				*alerted = true
-				alertChan <- alert.NoRpc(network.Name)
-				return
-			} else {
-				i = rand.Intn(len(rpcs)) //nolint
-				for _, r := range rpcs {
-					if r != rpcs[i] {
-						nRpcs = append(nRpcs, r)
-					}
-				}
-				url = rpcs[i]
-				rpcs = nRpcs
-				chainId, height, err = rpc.GetLatestHeight(url, client)
-				if err != nil {
-					continue
-				}
-				if chainId == network.ChainId {
-					break
-				}
-			}
-		}
+		// ... existing code
 	} else if len(rpcs) == 1 {
 		url = network.Rpcs[0]
-		chainId, height, err = rpc.GetLatestHeight(url, client)
+		chainID, height, err = rpc.GetLatestHeight(url, client)
 		if err != nil && !*alerted {
 			*alerted = true
 			alertChan <- alert.NoRpc(network.Name)
 			return
 		}
-		if chainId != network.ChainId && !*alerted {
+		if chainID != network.ChainID && !*alerted {
 			*alerted = true
 			alertChan <- alert.NoRpc(network.Name)
 			return
 		}
+
+		block, err := rpc.GetLatestBlock(url, client)
+		if err != nil || block.Error != nil {
+			log.Println("err - failed to check latest block for", network.Name)
+		} else if checkSig(network.Address, block) {
+			*alerted = true
+			alertChan <- alert.Confirmed(len(block.Result.Block.LastCommit.Signatures), network.BackCheck, network.Name)
+		}
 	}
-	chainId, blocktime, err := rpc.GetLatestBlockTime(url, client)
-	if err != nil || chainId != network.ChainId {
-		log.Println("err - failed to check lastest block time for", network.Name)
-	} else if network.StallTime != 0 && time.Since(blocktime) > time.Minute*time.Duration(network.StallTime) {
-		log.Println("last block time on", network.Name, "is", blocktime, "- sending alert")
-		*alerted = true
-		alertChan <- alert.Stalled(blocktime, network.Name)
-	}
-	heightInt, _ := strconv.Atoi(height)
-	alertChan <- backCheck(network, heightInt, alerted, url, client)
 }
+
 
 func backCheck(cfg config.Network, height int, alerted *bool, url string, client *http.Client) alert.Alert {
 	var (
