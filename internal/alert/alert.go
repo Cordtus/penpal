@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/doggystylez/penpal/internal/config"
+	"github.com/Cordtus/penpal/internal/config"
 )
 
 const retries = 3
