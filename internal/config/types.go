@@ -8,7 +8,7 @@ type (
 	}
 	Network struct {
 		Name           string   `json:"name,omitempty"`
-		ChainId        string   `json:"chain_id,omitempty"`
+		ChainID        string   `json:"chain_id,omitempty"`
 		Address        string   `json:"address,omitempty"`
 		Rpcs           []string `json:"rpcs,omitempty"`
 		BackCheck      int      `json:"back_check,omitempty"`
