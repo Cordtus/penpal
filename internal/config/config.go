@@ -36,7 +36,7 @@ func (c Config) validate() string {
 			return "name missing"
 		} else if network.Address == "" {
 			return "address missing"
-		} else if network.ChainId == "" {
+		} else if network.ChainID == "" {
 			return "chain-id missing for " + network.Name
 		} else if network.BackCheck <= 0 {
 			return "backcheck missing or invalid for " + network.Name
@@ -81,7 +81,7 @@ func New(file string) (err error) {
 	err = encoder.Encode(Config{
 		Networks: []Network{{
 			Name:           "Network1",
-			ChainId:        "network-1",
+			ChainID:        "network-1",
 			Address:        "AAAABBBBCCCCDDDD",
 			Rpcs:           []string{"rpc1", "rpc2"},
 			BackCheck:      10,
@@ -90,7 +90,7 @@ func New(file string) (err error) {
 			StallTime:      30,
 		}, {
 			Name:           "Network2",
-			ChainId:        "network-2",
+			ChainID:        "network-2",
 			Address:        "AAAABBBBCCCCDDDD",
 			Rpcs:           []string{"rpc1", "rpc2"},
 			BackCheck:      5,
