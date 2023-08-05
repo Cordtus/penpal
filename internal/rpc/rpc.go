@@ -10,17 +10,17 @@ import (
 )
 
 func GetLatestHeight(url string, client *http.Client) (chainID string, height string, err error) {
-	block, err := getLatestBlock(url, client)
+	block, err := GetLatestBlock(url, client)
 	return block.Result.Block.Header.ChainID, block.Result.Block.Header.Height, err
 }
 
 func GetLatestBlockTime(url string, client *http.Client) (string, time.Time, error) {
-	block, err := getLatestBlock(url, client)
+	block, err := GetLatestBlock(url, client)
 	return block.Result.Block.Header.ChainID, block.Result.Block.Header.Time, err
 }
 
-func getLatestBlock(url string, client *http.Client) (responseData Block, err error) {
-	err = getByUrlAndUnmarshall(&responseData, url+"/block", client)
+func GetLatestBlock(url string, client *http.Client) (responseData Block, err error) {
+	err = GetByUrlAndUnmarshall(&responseData, url+"/block", client)
 	return
 }
 
@@ -29,7 +29,7 @@ func GetBlockFromHeight(height string, url string, client *http.Client) (respons
 	return
 }
 
-func getByUrlAndUnmarshall(data interface{}, url string, client *http.Client) (err error) {
+func GetByUrlAndUnmarshall(data interface{}, url string, client *http.Client) (err error) {
 	r := &strings.Reader{}
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, r)
 	if err != nil {
