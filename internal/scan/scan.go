@@ -27,85 +27,80 @@ func Monitor(cfg settings.Config) {
 	<-exit
 }
 
-func scanValidator(network settings.Network, client *http.Client, validator settings.Validators, alertChan chan<- alert.Alert) {
-	alerted := new(bool) // Initialize the alerted variable
-	for {
-		block, err := rpc.GetLatestBlock(network.Rpcs[0], client)
-
-		if err != nil {
-			log.Println("Failed to fetch the latest block data:", err)
-			// Continue the loop without returning to keep retrying.
-		}
-
-		checkValidator(network, block, validator, alertChan, alerted) // Pass the alerted variable
-		if network.Interval > 2 {
-			time.Sleep(time.Minute * 2)
-		} else {
-			time.Sleep(time.Minute * time.Duration(network.Interval))
-		}
-	}
-}
-
-func checkValidator(network settings.Network, block rpc.Block, validator settings.Validators, alertChan chan<- alert.Alert, alerted *bool) {
-	var (
-		chainId   string
-		height    string
-		blocktime time.Time
-	)
-
-	height = block.Result.Block.Header.Height
-	chainId = block.Result.Block.Header.ChainID
-	blocktime = block.Result.Block.Header.Time
-
-	if chainId != network.ChainId && *alerted {
-		log.Println("err - chain id validation failed for rpc", network.Rpcs[0], "on", network.ChainId)
-		alerted = new(bool)
-		*alerted = true
+func scanValidator(network settings.Network, client *http.Client, validator settings.Validator, alertChan chan<- alert.Alert) {
+	height, err := rpc.GetLatestHeight(network.Rpcs[0], client)
+	if err != nil {
 		alertChan <- alert.NoRpc(network.ChainId)
 		return
 	}
 
-	if network.StallTime != 0 && time.Since(blocktime) > time.Minute*time.Duration(network.StallTime) {
-		log.Println("last block time on", network.ChainId, "is", blocktime, "- sending alert")
-		alerted = new(bool)
-		*alerted = true
-		alertChan <- alert.Stalled(blocktime, network.ChainId)
-	}
+	backCheckAlerted := false
+	for {
+		blockData, err := rpc.GetLatestBlockData(network.Rpcs[0], client)
+		if err != nil {
+			alertChan <- alert.RpcDown(network.Rpcs[0])
+			continue
+		}
 
-	alert := backCheck(network, height, validator, block, alerted) // Pass the alerted parameter here
-	alertChan <- alert
+		if time.Since(blockData.Block.Header.Time) > network.StallDuration {
+			alertChan <- alert.Stalled(blockData.Block.Header.Time, network.ChainId)
+		}
+
+		signed, err := rpc.GetSignedCount(network.Rpcs[0], client, validator.Address, height, network.BlocksToCheck)
+		if err != nil {
+			alertChan <- alert.RpcDown(network.Rpcs[0])
+			continue
+		}
+
+		if signed < network.BlocksToCheck-network.Threshold {
+			if !backCheckAlerted {
+				backCheckAlerted = true
+				alertChan <- alert.Missed(network.BlocksToCheck-signed, network.BlocksToCheck, validator.Moniker)
+			}
+		} else if backCheckAlerted {
+			backCheckAlerted = false
+			alertChan <- alert.Cleared(signed, network.BlocksToCheck, validator.Moniker)
+		} else if signed == network.BlocksToCheck {
+			alertChan <- alert.Signed(signed, network.BlocksToCheck, validator.Moniker)
+		}
+
+		backCheckAlert := backCheck(network, client, height, validator.Address, &backCheckAlerted)
+		alertChan <- backCheckAlert
+
+		time.Sleep(network.Interval)
+	}
 }
 
-func backCheck(network settings.Network, height string, validator settings.Validators, block rpc.Block, alerted *bool) alert.Alert {
-	signedBlocks := 0
-	missedBlocks := 0
-	heightInt, _ := strconv.Atoi(height)
+func backCheck(network settings.Network, client *http.Client, height int64, address string, alerted *bool) alert.Alert {
+	var (
+		missing int
+		total   int
+	)
 
-	for checkHeight := heightInt - network.BackCheck + 1; checkHeight <= heightInt; checkHeight++ {
-		if checkSig(validator.Address, block) {
-			signedBlocks++
-		} else {
-			missedBlocks++
+	for i := 0; i < network.BlocksToCheck; i++ {
+		block, err := rpc.GetBlockFromHeight(network.Rpcs[0], client, strconv.FormatInt(height-int64(i), 10))
+		if err != nil {
+			log.Println("Failed to fetch block from height:", err)
+			continue
 		}
+
+		if !checkSig(address, block) {
+			missing++
+		}
+		total++
 	}
 
-	if missedBlocks > network.AlertThreshold {
+	if missing >= network.Threshold {
 		if !*alerted {
 			*alerted = true
-			return alert.Missed(missedBlocks, network.BackCheck, validator.Moniker)
-		} else {
-			return alert.Nil("repeat alert suppressed - Missed blocks for " + validator.Moniker)
+			return alert.MissingBlocks(missing, total, address)
 		}
-	} else if signedBlocks == network.BackCheck {
-		if *alerted {
-			*alerted = false
-			return alert.Cleared(signedBlocks, network.BackCheck, validator.Moniker)
-		} else {
-			return alert.Signed(signedBlocks, network.BackCheck, validator.Moniker)
-		}
-	} else {
-		return alert.Nil("found " + strconv.Itoa(signedBlocks) + " of " + strconv.Itoa(network.BackCheck) + " signed for " + validator.Moniker)
+	} else if *alerted {
+		*alerted = false
+		return alert.Recovered(address)
 	}
+
+	return alert.Alert{}
 }
 
 func checkSig(address string, block rpc.Block) bool {
