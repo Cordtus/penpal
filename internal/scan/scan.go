@@ -14,7 +14,7 @@ import (
 func Monitor(cfg settings.Config) {
 	client := &http.Client{Timeout: time.Second * 10}
 
-	network := cfg.Networks[0]
+	network := cfg.Network[0]
 	validator := cfg.Validators[0]
 
 	height, err := rpc.GetLatestHeight(network.Rpcs[0], client)
