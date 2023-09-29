@@ -3,14 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
+	"log"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/cordtus/penpal/internal/rpc"
 	"github.com/cordtus/penpal/internal/scan"
-	config "github.com/cordtus/penpal/internal/settings"
+	"github.com/cordtus/penpal/internal/settings"
 )
 
 func main() {
@@ -29,46 +27,26 @@ func main() {
 		return
 	}
 	if init {
-		if err := config.New(file); err != nil {
+		if err := settings.New(file); err != nil {
 			fmt.Println(err)
 		}
 		return
 	}
-	cfg, err := config.Load(file)
+	cfg, err := settings.Load(file)
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal("Failed to load configuration:", err)
 	}
 
-	latestBlock := FetchLatestBlock(cfg.Network.Rpcs[0])
+	network := cfg.Network[0]
 
-	for _, validator := range cfg.Validators {
-		validatorConfig := createValidatorConfig(validator, cfg.Network, cfg.Notifiers, cfg.Health, latestBlock)
-		go scan.Monitor(validatorConfig, latestBlock)
+	if network.StallTime == 1 {
+		fmt.Println("warning! stall time for", network.ChainId, "is set to 1 minute, this may cause more frequent false alerts")
+	} else if network.StallTime == 0 {
+		fmt.Println("warning! stall check for", network.ChainId, "is disabled")
+	}
+	if !network.RpcAlert {
+		fmt.Println("warning! rpc alerts for", network.ChainId, "are disabled")
 	}
 
-	select {}
-
-}
-
-func FetchLatestBlock(url string) rpc.Block {
-	client := &http.Client{
-		Timeout: time.Second * 5,
-	}
-	block, err := rpc.GetLatestBlock(url, client)
-	if err != nil {
-		fmt.Println("Error fetching latest block:", err)
-		return rpc.Block{}
-	}
-	return block
-}
-
-func createValidatorConfig(validator config.Validator, network config.Network, notifiers config.Notifiers, health config.Health, latestBlock rpc.Block) config.Config {
-	return config.Config{
-		Validators: []config.Validator{validator},
-		Network:    network,
-		Notifiers:  notifiers,
-		Health:     health,
-		Block:      config.Block{},
-	}
+	scan.Monitor(cfg)
 }
