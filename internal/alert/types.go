@@ -4,10 +4,10 @@ const (
 	None AlertType = iota
 	Clear
 	RpcError
+	Error
 	Miss
 	Jail
 	Stall
-	Health
 	Unknown
 )
 

@@ -4,23 +4,26 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/cordtus/penpal/internal/config"
+	"github.com/cordtus/penpal/internal/settings"
 )
 
 const (
-	retries         = 3
-	maxRepeatAlerts = 5
-	initialBackoff  = 1 * time.Second
+	maxRepeatAlerts    = 5
+	maxRetries         = 5
+	stallAlertInterval = 60 * time.Minute // Time interval for repeating 'Stall' alerts
 )
 
-func Watch(alertChan <-chan Alert, notifiers config.Notifiers, client *http.Client) {
-	backoffAttempts := make(map[string]int) // Track backoff attempts for each alert
+func Watch(alertChan <-chan Alert, cfg settings.Config, client *http.Client) {
+	backoffAttempts := make(map[string]int)
+	lastSignedTime := make(map[string]time.Time)
+	lastStallTime := make(map[string]time.Time) // Track the last time a 'Stall' alert was sent for each message.
+
 	for {
 		a := <-alertChan
 		if a.AlertType == None {
@@ -28,62 +31,83 @@ func Watch(alertChan <-chan Alert, notifiers config.Notifiers, client *http.Clie
 			continue
 		}
 
-		// Check if we've reached the maximum repeat for this alert
-		if backoffAttempts[a.Message] >= maxRepeatAlerts {
-			log.Printf("Maximum repeat attempts reached for alert: %s. Skipping further notifications.", a.Message)
-			continue
+		if a.AlertType == Clear {
+			lastTime, exists := lastSignedTime[a.Message]
+			if exists {
+				if time.Since(lastTime) < 24*time.Hour {
+					log.Printf("Skipping 'Clear' alert for message '%s' as it was sent within the last 24 hours.", a.Message)
+					continue
+				}
+			}
+
+			lastSignedTime[a.Message] = time.Now()
+		}
+
+		// Check if the alert type is 'Stall'
+		if a.AlertType == Stall {
+			lastTime, exists := lastStallTime[a.Message]
+			if exists {
+				if time.Since(lastTime) < 1*time.Hour {
+					log.Printf("Skipping 'Stall' alert for message '%s' as it was sent within the hour.", a.Message)
+					continue
+				}
+			}
+
+			lastStallTime[a.Message] = time.Now()
 		}
 
 		var notifications []notification
-		if notifiers.Telegram.Key != "" {
-			notifications = append(notifications, telegramNoti(notifiers.Telegram.Key, notifiers.Telegram.Chat, a.Message))
+		if cfg.Notifiers.Telegram.Key != "" {
+			notifications = append(notifications, telegramNoti(cfg.Notifiers.Telegram.Key, cfg.Notifiers.Telegram.Chat, a.Message))
 		}
-		if notifiers.Discord.Webhook != "" {
-			notifications = append(notifications, discordNoti(notifiers.Discord.Webhook, a.Message))
+		if cfg.Notifiers.Discord.Webhook != "" {
+			notifications = append(notifications, discordNoti(cfg.Notifiers.Discord.Webhook, a.Message))
 		}
 
 		for _, n := range notifications {
 			go func(b notification, alertMsg string) {
-				backoffDuration := initialBackoff
-				for i := 0; i < retries; i++ {
+				for i := 0; i < maxRetries; i++ {
+
+					time.Sleep(1 * time.Second)
+
 					err := b.send(client)
 					if err == nil {
 						log.Println("Sent alert to", b.Type, alertMsg)
-						delete(backoffAttempts, alertMsg) // Reset backoff attempts on success
+						delete(backoffAttempts, alertMsg)
 						return
 					}
-					time.Sleep(backoffDuration)
-					backoffDuration *= 2 // Exponential backoff
-					log.Printf("Error sending message %s to %s. Retrying in %v", alertMsg, b.Type, backoffDuration)
+					log.Printf("Error sending message %s to %s. Retrying...", alertMsg, b.Type)
 				}
-				// Mark that we've attempted the alert
+
 				backoffAttempts[alertMsg]++
-				log.Printf("Error sending message %s to %s after maximum retries", alertMsg, b.Type)
+				log.Printf("Error sending message %s to %s after maximum retries. Skipping further notifications.", alertMsg, b.Type)
 			}(n, a.Message)
 		}
+
+		time.Sleep(1 * time.Second)
 	}
 }
 
-func (n notification) send(client *http.Client) (err error) {
+func (n notification) send(client *http.Client) error {
 	json, err := json.Marshal(n.Content)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 	req, err := http.NewRequestWithContext(context.Background(), "POST", n.Auth, bytes.NewBuffer(json))
 	if err != nil {
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Println(err)
-		return
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode > 299 || resp.StatusCode < 200 {
-		err = errors.New("code not 200")
+		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
-	return
+	return nil
 }
 
 func telegramNoti(key, chat, message string) notification {
@@ -91,19 +115,23 @@ func telegramNoti(key, chat, message string) notification {
 }
 
 func discordNoti(url, message string) notification {
-	return notification{Type: "discord", Auth: url, Content: discordMessage{Username: "penpal", Content: message}}
+	return notification{Type: "discord", Auth: url, Content: discordMessage{Username: "Alert-", Content: message}}
 }
 
 func Nil(message string) Alert {
 	return Alert{AlertType: None, Message: message}
 }
 
-func Cleared(signed int, check int, chain, validator string) Alert {
-	return Alert{AlertType: Clear, Message: "😌 alert resolved. found " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " signed blocks for validator " + validator + " on chain " + chain}
+func Missed(missed int, check int, validatorMoniker string) Alert {
+	return Alert{AlertType: Miss, Message: " ❌ " + validatorMoniker + " missed " + strconv.Itoa(missed) + " of " + strconv.Itoa(check) + " recent blocks "}
 }
 
-func Signed(signed int, check int, chain, validator string) Alert {
-	return Alert{AlertType: Clear, Message: "😌 blocks! found " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " signed blocks for validator " + validator + " on chain " + chain}
+func Cleared(signed int, check int, validatorMoniker string) Alert {
+	return Alert{AlertType: Clear, Message: " ♿️ " + validatorMoniker + " is recovering, " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " recent blocks signed "}
+}
+
+func Signed(signed int, check int, validatorMoniker string) Alert {
+	return Alert{AlertType: Clear, Message: " ✅ " + validatorMoniker + " signed " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " recent blocks "}
 }
 
 func NoRpc(ChainId string) Alert {
@@ -114,22 +142,10 @@ func RpcDown(url string) Alert {
 	return Alert{AlertType: RpcError, Message: "📡 rpc " + url + " is down or malfunctioning "}
 }
 
-func Missed(validatorName string, missed int, check int, validator string) Alert {
-	return Alert{AlertType: Miss, Message: validatorName + "❌ missed " + strconv.Itoa(missed) + " of last " + strconv.Itoa(check) + " blocks "}
+func InvalidHeight(ChainId string) Alert {
+	return Alert{AlertType: Error, Message: "❓ Invalid height for " + ChainId}
 }
 
 func Stalled(blocktime time.Time, ChainId string) Alert {
-	return Alert{AlertType: Stall, Message: "⏰ warning - last block found for " + ChainId + " was " + blocktime.Format(time.RFC1123)}
-}
-
-func Healthy(interval time.Duration, address string) Alert {
-	return Alert{AlertType: Health, Message: "🤝 penpal at " + address + " healthy. next check at " + timeInterval(interval)}
-}
-
-func Unhealthy(interval time.Duration, address string) Alert {
-	return Alert{AlertType: Health, Message: "🤢 penpal at " + address + " unhealthy. next check at " + timeInterval(interval)}
-}
-
-func timeInterval(d time.Duration) string {
-	return time.Now().UTC().Add(d).Format(time.RFC3339)
+	return Alert{AlertType: Stall, Message: "⏰ warning - last block " + ChainId + " produced at " + blocktime.Format(time.RFC1123)}
 }

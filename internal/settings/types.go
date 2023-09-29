@@ -1,17 +1,10 @@
-package config
+package settings
 
 type (
 	Config struct {
-		Validators []Validator `json:"validators,omitempty"`
-		Notifiers  Notifiers   `json:"notifiers,omitempty"`
-		Health     Health      `json:"health,omitempty"`
-		Network    Network     `json:"network,omitempty"`
-		Block      Block       `json:"latest_block,omitempty"`
-	}
-
-	Validator struct {
-		Name    string `json:"name,omitempty"`
-		Address string `json:"address,omitempty"`
+		Network    []Network    `json:"network,omitempty"`
+		Notifiers  Notifiers    `json:"notifiers,omitempty"`
+		Validators []Validators `json:"validators,omitempty"`
 	}
 
 	Network struct {
@@ -21,7 +14,6 @@ type (
 		AlertThreshold int      `json:"alert_threshold,omitempty"`
 		Interval       int      `json:"interval,omitempty"`
 		StallTime      int      `json:"stall_time,omitempty"`
-		Reverse        bool     `json:"reverse,omitempty"`
 		RpcAlert       bool     `json:"rpc_alert,omitempty"`
 	}
 
@@ -35,13 +27,8 @@ type (
 		} `json:"discord"`
 	}
 
-	Block struct {
-		LatestBlock int `json:"latest_block,omitempty"`
-	}
-
-	Health struct {
-		Interval int      `json:"interval,omitempty"`
-		Port     string   `json:"port,omitempty"`
-		Nodes    []string `json:"nodes,omitempty"`
+	Validators struct {
+		Moniker string `json:"moniker,omitempty"`
+		Address string `json:"address,omitempty"`
 	}
 )

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/cordtus/penpal/internal/alert"
-	"github.com/cordtus/penpal/internal/config"
 	"github.com/cordtus/penpal/internal/rpc"
+	config "github.com/cordtus/penpal/internal/settings"
 )
 
 func Monitor(cfg config.Config, latestBlock rpc.Block) {

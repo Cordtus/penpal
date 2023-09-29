@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cordtus/penpal/internal/config"
 	"github.com/cordtus/penpal/internal/rpc"
 	"github.com/cordtus/penpal/internal/scan"
+	config "github.com/cordtus/penpal/internal/settings"
 )
 
 func main() {
