@@ -1,60 +1,97 @@
 package scan
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/cordtus/penpal/internal/alert"
 	"github.com/cordtus/penpal/internal/rpc"
-	config "github.com/cordtus/penpal/internal/settings"
+	"github.com/cordtus/penpal/internal/settings"
 )
 
-func Monitor(cfg config.Config, latestBlock rpc.Block) {
+func Monitor(cfg settings.Config) {
 	alertChan := make(chan alert.Alert)
 	exit := make(chan bool)
-	client := &http.Client{
-		Timeout: time.Second * 5,
+	client := &http.Client{Timeout: time.Second * 10}
+
+	network := cfg.Network[0]
+	validator := cfg.Validators[0]
+
+	height, err := rpc.GetLatestHeight(network.Rpcs[0], client)
+	if err != nil {
+		alertChan <- alert.NoRpc(network.ChainId)
+		return
 	}
 
-	for _, validator := range cfg.Validators {
-		go scanValidator(validator, cfg.Network, alertChan, client, latestBlock)
-	}
-	if cfg.Health.Interval != 0 {
-		go healthServer(cfg.Health.Port)
-		go healthCheck(cfg.Health, alertChan, client)
-	}
-
-	<-exit
-}
-
-func scanValidator(validator config.Validator, network config.Network, alertChan chan<- alert.Alert, client *http.Client, latestBlock rpc.Block) {
-	var (
-		interval int
-		alerted  bool
-	)
-
+	backCheckAlerted := false
 	for {
-		checkNetwork(validator, network, client, &alerted, alertChan, latestBlock)
-
-		if alerted && network.Interval > 2 {
-			interval = 2
-		} else {
-			interval = network.Interval
+		blockData, err := rpc.GetLatestBlockData(network.Rpcs[0], client)
+		if err != nil {
+			alertChan <- alert.RpcDown(network.Rpcs[0])
+			continue
 		}
 
-		time.Sleep(time.Duration(interval) * time.Minute)
+		if time.Since(blockData.Block.Header.Time) > network.StallDuration {
+			alertChan <- alert.Stalled(blockData.Block.Header.Time, network.ChainId)
+		}
+
+		signed, err := rpc.GetSignedCount(network.Rpcs[0], client, validator.Address, height, network.BlocksToCheck)
+		if err != nil {
+			alertChan <- alert.RpcDown(network.Rpcs[0])
+			continue
+		}
+
+		if signed < network.BlocksToCheck-network.Threshold {
+			if !backCheckAlerted {
+				backCheckAlerted = true
+				alertChan <- alert.Missed(network.BlocksToCheck-signed, network.BlocksToCheck, validator.Moniker)
+			}
+		} else if backCheckAlerted {
+			backCheckAlerted = false
+			alertChan <- alert.Cleared(signed, network.BlocksToCheck, validator.Moniker)
+		} else if signed == network.BlocksToCheck {
+			alertChan <- alert.Signed(signed, network.BlocksToCheck, validator.Moniker)
+		}
+
+		var (
+			missing int
+			total   int
+		)
+
+		for i := 0; i < network.BlocksToCheck; i++ {
+			block, err := rpc.GetBlockFromHeight(network.Rpcs[0], client, strconv.FormatInt(height-int64(i), 10))
+			if err != nil {
+				log.Println("Failed to fetch block from height:", err)
+				continue
+			}
+
+			if !checkSig(validator.Address, block) {
+				missing++
+			}
+			total++
+		}
+
+		if missing >= network.Threshold {
+			if !backCheckAlerted {
+				backCheckAlerted = true
+				alertChan <- alert.MissingBlocks(missing, total, validator.Address)
+			}
+		} else if backCheckAlerted {
+			backCheckAlerted = false
+			alertChan <- alert.Recovered(validator.Address)
+		}
+
+		time.Sleep(network.Interval)
 	}
 }
 
-func checkNetwork(validator config.Validator, network config.Network, client *http.Client, alerted *bool, alertChan chan<- alert.Alert, latestBlock rpc.Block) {
-	chainID := latestBlock.Result.Block.Header.ChainID
-	LatestBlockTime := latestBlock.Result.Block.Header.Time
-
-	heightInt, _ := strconv.Atoi(latestBlock.Result.Block.Header.Height)
-	alertChan <- backCheck(validator, network, heightInt, alerted, network.Rpcs[0], client)
-}
-
-func backCheck(validator config.Validator, network config.Network, heightInt int, alerted *bool, s string, client *http.Client) {
-	panic("unimplemented")
+func checkSig(address string, block rpc.Block) bool {
+	for _, sig := range block.Result.Block.LastCommit.Signatures {
+		if sig.ValidatorAddress == address {
+			return true
+		}
+	}
+	return false
 }
