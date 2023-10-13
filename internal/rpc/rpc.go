@@ -17,7 +17,7 @@ func GetLatestBlock(url string, client *http.Client) (responseData Block, err er
 func GetLatestHeight(url string, client *http.Client) (height string, err error) {
 	block, err := GetLatestBlock(url, client)
 	if err != nil {
-		return "", err
+		return height, err
 	}
 	return block.Result.Block.Header.Height, err
 }
