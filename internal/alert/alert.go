@@ -35,8 +35,8 @@ func Watch(alertChan <-chan Alert, cfg settings.Config, client *http.Client) {
 			lastTime, exists := lastSignedTime[a.Message]
 			if exists {
 				// Check if it's been less than 15 minutes since the last 'Signed' alert.
-				if time.Since(lastTime) < 15*time.Minute {
-					log.Printf("Skipping 'Signed' alert for message '%s' as it was sent within the last 15 minutes.", a.Message)
+				if time.Since(lastTime) < 1440*time.Minute {
+					log.Printf("Skipping 'Signed' alert for message '%s' as it was sent within the last 24h.", a.Message)
 					continue
 				}
 			}
