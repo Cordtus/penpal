@@ -80,7 +80,12 @@ func checkValidator(network settings.Network, block rpc.Block, client *http.Clie
 func backCheck(network settings.Network, height string, validator settings.Validators, client *http.Client, alerted *bool) alert.Alert {
 	signedBlocks := 0
 	missedBlocks := 0
-	heightInt, _ := strconv.Atoi(height)
+	heightInt, err := strconv.Atoi(height)
+	if err != nil {
+		log.Println("Error converting height to integer:", err)
+		// Handle the error, perhaps return from the function
+		return alert.Nil("Error converting height to integer")
+	}
 
 	for checkHeight := heightInt - network.BackCheck + 1; checkHeight <= heightInt; checkHeight++ {
 		block, err := rpc.GetBlockFromHeight(network.Rpcs[0], strconv.Itoa(checkHeight), client)
