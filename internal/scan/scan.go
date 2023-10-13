@@ -13,17 +13,18 @@ import (
 
 func Monitor(cfg settings.Config) {
 	alertChan := make(chan alert.Alert)
+	network := cfg.Network[0]
 	exit := make(chan bool)
 	client := &http.Client{
 		Timeout: time.Second * 5,
 	}
 
-	network := cfg.Network[0]
+	go alert.Watch(alertChan, settings.Config{Notifiers: cfg.Notifiers}, client)
+
 	for _, validator := range cfg.Validators {
 		go scanValidator(network, client, validator, alertChan)
 	}
 
-	alert.Watch(alertChan, settings.Config{Notifiers: cfg.Notifiers}, client)
 	<-exit
 }
 
@@ -38,7 +39,7 @@ func scanValidator(network settings.Network, client *http.Client, validator sett
 		}
 
 		checkValidator(network, block, validator, alertChan, alerted) // Pass the alerted variable
-		if network.Interval > 2 {
+		if network.Interval < 2 {
 			time.Sleep(time.Minute * 2)
 		} else {
 			time.Sleep(time.Minute * time.Duration(network.Interval))

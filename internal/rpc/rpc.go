@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-func NewClient() *http.Client {
-	return &http.Client{
-		Timeout: 5 * time.Second,
-	}
-}
-
 func GetLatestBlock(url string, client *http.Client) (responseData Block, err error) {
 	err = getByURLAndUnmarshal(&responseData, url+"/block", client)
 	return responseData, err

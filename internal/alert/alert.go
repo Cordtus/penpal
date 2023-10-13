@@ -72,9 +72,6 @@ func Watch(alertChan <-chan Alert, cfg settings.Config, client *http.Client) {
 				log.Printf("Error sending message %s to %s after maximum retries. Skipping further notifications.", alertMsg, b.Type)
 			}(n, a.Message)
 		}
-
-		// Add a delay between sending each alert
-		time.Sleep(1 * time.Second) // Adjust the duration as needed
 	}
 }
 
