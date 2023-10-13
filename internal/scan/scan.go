@@ -88,7 +88,7 @@ func backCheck(network settings.Network, height string, validator settings.Valid
 	}
 
 	for checkHeight := heightInt - network.BackCheck + 1; checkHeight <= heightInt; checkHeight++ {
-		block, err := rpc.GetBlockFromHeight(network.Rpcs[0], strconv.Itoa(checkHeight), client)
+		block, err := rpc.GetBlockFromHeight(strconv.Itoa(checkHeight), network.Rpcs[0], client)
 		if err != nil {
 			log.Println("Failed to fetch block data for height", checkHeight, ":", err)
 			continue
