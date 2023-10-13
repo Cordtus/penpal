@@ -105,7 +105,7 @@ func telegramNoti(key, chat, message string) notification {
 }
 
 func discordNoti(url, message string) notification {
-	return notification{Type: "discord", Auth: url, Content: discordMessage{Username: "penpal", Content: message}}
+	return notification{Type: "discord", Auth: url, Content: discordMessage{Username: "Alert-", Content: message}}
 }
 
 func Nil(message string) Alert {
@@ -113,15 +113,15 @@ func Nil(message string) Alert {
 }
 
 func Missed(missed int, check int, validatorMoniker string) Alert {
-	return Alert{AlertType: Miss, Message: validatorMoniker + "❌ missed " + strconv.Itoa(missed) + " of last " + strconv.Itoa(check) + " blocks"}
+	return Alert{AlertType: Miss, Message: " ❌ " + validatorMoniker + " missed " + strconv.Itoa(missed) + " of " + strconv.Itoa(check) + " recent blocks "}
 }
 
 func Cleared(signed int, check int, validatorMoniker string) Alert {
-	return Alert{AlertType: Clear, Message: ":face_exhaling:  alert resolved. found " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " signed blocks for " + validatorMoniker}
+	return Alert{AlertType: Clear, Message: " ♿️ " + validatorMoniker + " is recovering, " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " recent blocks signed "}
 }
 
 func Signed(signed int, check int, validatorMoniker string) Alert {
-	return Alert{AlertType: Clear, Message: ":white_check_mark:  blocks! found " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " signed blocks for " + validatorMoniker}
+	return Alert{AlertType: Clear, Message: " ✅ " + validatorMoniker + " signed " + strconv.Itoa(signed) + " of " + strconv.Itoa(check) + " recent blocks "}
 }
 
 func NoRpc(ChainId string) Alert {
@@ -133,5 +133,5 @@ func RpcDown(url string) Alert {
 }
 
 func Stalled(blocktime time.Time, ChainId string) Alert {
-	return Alert{AlertType: Stall, Message: "⏰ warning - last block found for " + ChainId + " was " + blocktime.Format(time.RFC1123)}
+	return Alert{AlertType: Stall, Message: "⏰ warning - last block " + ChainId + " produced at " + blocktime.Format(time.RFC1123)}
 }

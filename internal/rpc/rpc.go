@@ -9,46 +9,25 @@ import (
 	"time"
 )
 
-func GetLatestBlockData(url string, client *http.Client) (data LatestBlockData, err error) {
-	resp, err := client.Get(url + "/block")
-	if err != nil {
-		return LatestBlockData{}, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return LatestBlockData{}, err
-	}
-
-	var block Block
-	err = json.Unmarshal(body, &block)
-	if err != nil {
-		return LatestBlockData{}, err
-	}
-
-	return LatestBlockData{
-		Block:     block,
-		Height:    block.Result.Block.Header.Height,
-		ChainID:   block.Result.Block.Header.ChainID,
-		BlockTime: block.Result.Block.Header.Time,
-	}, nil
+func GetLatestBlock(url string, client *http.Client) (responseData Block, err error) {
+	err = getByURLAndUnmarshal(&responseData, url+"/block", client)
+	return responseData, err
 }
 
 func GetLatestHeight(url string, client *http.Client) (height string, err error) {
-	data, err := GetLatestBlockData(url, client)
+	block, err := GetLatestBlock(url, client)
 	if err != nil {
 		return "", err
 	}
-	return data.Height, nil
+	return block.Result.Block.Header.Height, err
 }
 
 func GetLatestBlockTime(url string, client *http.Client) (chainID string, blockTime time.Time, err error) {
-	data, err := GetLatestBlockData(url, client)
+	block, err := GetLatestBlock(url, client)
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	return data.ChainID, data.BlockTime, nil
+	return block.Result.Block.Header.ChainID, block.Result.Block.Header.Time, err
 }
 
 func GetBlockFromHeight(height string, url string, client *http.Client) (responseData Block, err error) {
