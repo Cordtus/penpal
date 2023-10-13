@@ -4,12 +4,18 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cordtus/penpal/internal/alert"
 	"github.com/cordtus/penpal/internal/rpc"
 	"github.com/cordtus/penpal/internal/settings"
 )
+
+type BlockCheckResult struct {
+	Signed bool
+	Error  error
+}
 
 func Monitor(cfg settings.Config) {
 	alertChan := make(chan alert.Alert)
@@ -29,16 +35,15 @@ func Monitor(cfg settings.Config) {
 }
 
 func scanValidator(network settings.Network, client *http.Client, validator settings.Validators, alertChan chan<- alert.Alert) {
-	alerted := new(bool) // Initialize the alerted variable
+	alerted := new(bool)
 	for {
 		block, err := rpc.GetLatestBlock(network.Rpcs[0], client)
-
 		if err != nil {
 			log.Println("Failed to fetch the latest block data:", err)
-			// Continue the loop without returning to keep retrying.
 		}
 
-		checkValidator(network, block, client, validator, alertChan, alerted) // Pass the alerted variable
+		checkValidator(network, block, client, validator, alertChan, alerted)
+
 		if network.Interval < 2 {
 			time.Sleep(time.Minute * 2)
 		} else {
@@ -83,18 +88,40 @@ func backCheck(network settings.Network, height string, validator settings.Valid
 	heightInt, err := strconv.Atoi(height)
 	if err != nil {
 		log.Println("Error converting height to integer:", err)
-		// Handle the error, perhaps return from the function
 		return alert.Nil("Error converting height to integer")
 	}
 
+	var wg sync.WaitGroup
+	resultChan := make(chan BlockCheckResult, network.BackCheck)
+
 	for checkHeight := heightInt - network.BackCheck + 1; checkHeight <= heightInt; checkHeight++ {
-		block, err := rpc.GetBlockFromHeight(strconv.Itoa(checkHeight), network.Rpcs[0], client)
-		if err != nil {
-			log.Println("Failed to fetch block data for height", checkHeight, ":", err)
+		wg.Add(1)
+		go func(height int) {
+			defer wg.Done()
+
+			block, err := rpc.GetBlockFromHeight(strconv.Itoa(height), network.Rpcs[0], client)
+			if err != nil {
+				log.Println("Failed to fetch block data for height", height, ":", err)
+				resultChan <- BlockCheckResult{Signed: false, Error: err}
+				return
+			}
+
+			if checkSig(validator.Address, block) {
+				resultChan <- BlockCheckResult{Signed: true, Error: nil}
+			} else {
+				resultChan <- BlockCheckResult{Signed: false, Error: nil}
+			}
+		}(checkHeight)
+	}
+
+	wg.Wait()
+	close(resultChan)
+
+	for result := range resultChan {
+		if result.Error != nil {
 			continue
 		}
-
-		if checkSig(validator.Address, block) {
+		if result.Signed {
 			signedBlocks++
 		} else {
 			missedBlocks++
