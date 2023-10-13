@@ -132,6 +132,6 @@ func RpcDown(url string) Alert {
 	return Alert{AlertType: RpcError, Message: "📡 rpc " + url + " is down or malfunctioning "}
 }
 
-func Stalled(blocktime time.Time, ChainId string) Alert {
-	return Alert{AlertType: Stall, Message: "⏰ warning - last block " + ChainId + " produced at " + blocktime.Format(time.RFC1123)}
+func Stalled(blocktime time.Time) Alert {
+	return Alert{AlertType: Stall, Message: "⏰ warning - last block produced at " + blocktime.Format(time.RFC1123)}
 }

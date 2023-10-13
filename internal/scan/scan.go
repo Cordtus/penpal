@@ -66,10 +66,10 @@ func checkValidator(network settings.Network, block rpc.Block, validator setting
 	}
 
 	if network.StallTime != 0 && time.Since(blocktime) > time.Minute*time.Duration(network.StallTime) {
-		log.Println("last block time on", network.ChainId, "is", blocktime, "- sending alert")
+		log.Println("latest block time is", blocktime, "- sending alert")
 		alerted = new(bool)
 		*alerted = true
-		alertChan <- alert.Stalled(blocktime, network.ChainId)
+		alertChan <- alert.Stalled(blocktime)
 	}
 
 	alert := backCheck(network, height, validator, block, alerted) // Pass the alerted parameter here

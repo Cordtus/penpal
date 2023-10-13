@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+func NewClient() *http.Client {
+	return &http.Client{
+		Timeout: 5 * time.Second,
+	}
+}
+
 func GetLatestBlock(url string, client *http.Client) (responseData Block, err error) {
 	err = getByURLAndUnmarshal(&responseData, url+"/block", client)
 	return responseData, err
@@ -22,12 +28,12 @@ func GetLatestHeight(url string, client *http.Client) (height string, err error)
 	return block.Result.Block.Header.Height, err
 }
 
-func GetLatestBlockTime(url string, client *http.Client) (chainID string, blockTime time.Time, err error) {
+func GetLatestBlockTime(url string, client *http.Client) (blockTime time.Time, err error) {
 	block, err := GetLatestBlock(url, client)
 	if err != nil {
-		return "", time.Time{}, err
+		return time.Time{}, err
 	}
-	return block.Result.Block.Header.ChainID, block.Result.Block.Header.Time, err
+	return block.Result.Block.Header.Time, err
 }
 
 func GetBlockFromHeight(height string, url string, client *http.Client) (responseData Block, err error) {
