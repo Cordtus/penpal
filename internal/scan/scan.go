@@ -19,7 +19,7 @@ func Monitor(cfg settings.Config) {
 		Timeout: time.Second * 5,
 	}
 
-	go alert.Watch(alertChan, settings.Config{Notifiers: cfg.Notifiers}, client)
+	alert.Watch(alertChan, settings.Config{Notifiers: cfg.Notifiers}, client)
 
 	for _, validator := range cfg.Validators {
 		go scanValidator(network, client, validator, alertChan)
