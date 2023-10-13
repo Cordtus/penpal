@@ -38,7 +38,7 @@ func scanValidator(network settings.Network, client *http.Client, validator sett
 			// Continue the loop without returning to keep retrying.
 		}
 
-		checkValidator(network, block, validator, alertChan, alerted) // Pass the alerted variable
+		checkValidator(network, block, client, validator, alertChan, alerted) // Pass the alerted variable
 		if network.Interval < 2 {
 			time.Sleep(time.Minute * 2)
 		} else {
@@ -47,7 +47,7 @@ func scanValidator(network settings.Network, client *http.Client, validator sett
 	}
 }
 
-func checkValidator(network settings.Network, block rpc.Block, validator settings.Validators, alertChan chan<- alert.Alert, alerted *bool) {
+func checkValidator(network settings.Network, block rpc.Block, client *http.Client, validator settings.Validators, alertChan chan<- alert.Alert, alerted *bool) {
 	var (
 		chainId   string
 		height    string
@@ -73,16 +73,22 @@ func checkValidator(network settings.Network, block rpc.Block, validator setting
 		alertChan <- alert.Stalled(blocktime)
 	}
 
-	alert := backCheck(network, height, validator, block, alerted) // Pass the alerted parameter here
+	alert := backCheck(network, height, validator, client, alerted) // Pass the alerted parameter here
 	alertChan <- alert
 }
 
-func backCheck(network settings.Network, height string, validator settings.Validators, block rpc.Block, alerted *bool) alert.Alert {
+func backCheck(network settings.Network, height string, validator settings.Validators, client *http.Client, alerted *bool) alert.Alert {
 	signedBlocks := 0
 	missedBlocks := 0
 	heightInt, _ := strconv.Atoi(height)
 
 	for checkHeight := heightInt - network.BackCheck + 1; checkHeight <= heightInt; checkHeight++ {
+		block, err := rpc.GetBlockFromHeight(network.Rpcs[0], strconv.Itoa(checkHeight), client)
+		if err != nil {
+			log.Println("Failed to fetch block data for height", checkHeight, ":", err)
+			continue
+		}
+
 		if checkSig(validator.Address, block) {
 			signedBlocks++
 		} else {
