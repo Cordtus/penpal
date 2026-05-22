@@ -149,3 +149,19 @@ func InvalidHeight(ChainId string) Alert {
 func Stalled(blocktime time.Time, ChainId string) Alert {
 	return Alert{AlertType: Stall, Message: "⏰ warning - last block " + ChainId + " produced at " + blocktime.Format(time.RFC1123)}
 }
+
+func SignerDown(name string) Alert {
+	return Alert{AlertType: RpcError, Message: "📡 signer metrics " + name + " are down"}
+}
+
+func SignerRecovered(name string) Alert {
+	return Alert{AlertType: Clear, Message: " ♿️ signer metrics " + name + " recovered "}
+}
+
+func SignerError(name string, errors int64) Alert {
+	return Alert{AlertType: Error, Message: " ❌ signer " + name + " reported " + strconv.FormatInt(errors, 10) + " errors "}
+}
+
+func SignerStalled(blocktime time.Time, name string) Alert {
+	return Alert{AlertType: Stall, Message: "⏰ warning - last signer checkpoint " + name + " at " + blocktime.Format(time.RFC1123)}
+}

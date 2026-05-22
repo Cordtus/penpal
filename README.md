@@ -16,6 +16,24 @@ go build ./cmd/penpal
 nano config.json
 ```
 
+For Nomic, add a signer metrics URL on the network entry, for example:
+```json
+{
+  "name": "nomic",
+  "chain_id": "nomic-mainnet",
+  "address": "YOUR_VALIDATOR_HEX_ADDRESS",
+  "rpcs": ["http://localhost:26657"],
+  "rpc_alert": true,
+  "signer_metrics": "http://127.0.0.1:9777/metrics",
+  "signer_stall_mins": 60,
+  "back_check": 20,
+  "alert_threshold": 5,
+  "interval": 15,
+  "stall_time": 30
+}
+```
+This is only useful for Nomic, where the signer exposes Prometheus metrics.
+
 
 ## set up systemd service
 save the following as `/etc/systemd/system/penpal.service`

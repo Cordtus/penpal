@@ -19,6 +19,9 @@ func Load(file string) (config Config, err error) {
 		return
 	}
 	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return
+	}
 	warn := config.validate()
 	if warn != "" {
 		err = errors.New("check config - " + warn)
@@ -28,32 +31,44 @@ func Load(file string) (config Config, err error) {
 }
 
 func (c Config) validate() string {
-	if len(c.Validators) == 0 {
-		return "no validators found - check config"
+	if len(c.Networks) == 0 {
+		return "no networks found - check config"
 	}
 
-	network := c.Network[0]
+	for _, network := range c.Networks {
+		if network.ChainId == "" {
+			return "chain-id value invalid - check config"
+		}
+		if network.Address == "" {
+			return "address value invalid for " + network.Name + " - check config"
+		}
+		if network.BackCheck <= 0 {
+			return "backcheck value invalid - check config"
+		}
+		if network.AlertThreshold <= 0 || network.AlertThreshold > network.BackCheck {
+			return "alert threshold value invalid - check config"
+		}
+		if network.Interval <= 0 {
+			return "check interval value invalid - check config"
+		}
+		if network.StallTime < 0 {
+			return "stall time value invalid - check config"
+		}
+		if network.SignerStallMins < 0 {
+			return "signer stall time value invalid - check config"
+		}
 
-	if network.ChainId == "" {
-		return "chain-id value invalid - check config"
-	}
-	if network.BackCheck <= 0 {
-		return "backcheck value invalid - check config"
-	}
-	if network.AlertThreshold <= 0 || network.AlertThreshold > network.BackCheck {
-		return "alert threshold value invalid - check config"
-	}
-	if network.Interval <= 0 {
-		return "check interval value invalid - check config"
-	}
-	if network.StallTime < 0 {
-		return "stall time value invalid - check config"
-	}
-
-	for _, rpcURL := range network.Rpcs {
-		parsedURL, err := url.Parse(rpcURL)
-		if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" || (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") {
-			return "rpc \"" + rpcURL + "\" invalid for the network"
+		for _, rpcURL := range network.Rpcs {
+			parsedURL, err := url.Parse(rpcURL)
+			if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" || (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") {
+				return "rpc \"" + rpcURL + "\" invalid for the network"
+			}
+		}
+		if network.SignerMetrics != "" {
+			parsedURL, err := url.Parse(network.SignerMetrics)
+			if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" || (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") {
+				return "signer metrics \"" + network.SignerMetrics + "\" invalid for the network"
+			}
 		}
 	}
 

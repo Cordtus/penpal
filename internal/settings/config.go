@@ -22,11 +22,16 @@ func New(file string) (err error) {
 	encoder := json.NewEncoder(configFile)
 	encoder.SetIndent("", "  ")
 	err = encoder.Encode(Config{
-		Network: []Network{
+		Networks: []Network{
 			{
+				Name:           "Network1",
 				ChainId:        "network-1",
-				Rpcs:           []string{"rpc1", "rpc2"},
-				BackCheck:      10,
+				Address:        "VALIDATOR_HEX_ADDRESS",
+				Rpcs:           []string{"http://localhost:26657"},
+				RpcAlert:       true,
+				SignerMetrics:  "",
+				SignerStallMins: 60,
+				BackCheck:      20,
 				AlertThreshold: 5,
 				Interval:       15,
 				StallTime:      30,
@@ -34,8 +39,8 @@ func New(file string) (err error) {
 		},
 		Notifiers: Notifiers{
 			Telegram: struct {
-				Key  string `json:"key,omitempty"`
-				Chat string `json:"chat_id,omitempty"`
+				Key  string `json:"key"`
+				Chat string `json:"chat_id"`
 			}{
 				Key:  "api_key",
 				Chat: "chat_id",
@@ -43,18 +48,13 @@ func New(file string) (err error) {
 			Discord: struct {
 				Webhook string `json:"webhook"`
 			}{
-				Webhook: "webhook_url",
+				Webhook: "",
 			},
 		},
-		Validators: []Validators{
-			{
-				Moniker: "Validator1",
-				Address: "AAAABBBBCCCCDDDD1",
-			},
-			{
-				Moniker: "Validator2",
-				Address: "AAAABBBBCCCCDDDD2",
-			},
+		Health: Health{
+			Interval: 1,
+			Port:     "8080",
+			Nodes:    []string{},
 		},
 	})
 	if err == nil {

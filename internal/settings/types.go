@@ -2,33 +2,38 @@ package settings
 
 type (
 	Config struct {
-		Network    []Network    `json:"network,omitempty"`
-		Notifiers  Notifiers    `json:"notifiers,omitempty"`
-		Validators []Validators `json:"validators,omitempty"`
+		Networks  []Network `json:"networks"`
+		Notifiers Notifiers `json:"notifiers"`
+		Health    Health    `json:"health"`
 	}
 
 	Network struct {
-		ChainId        string   `json:"chain_id,omitempty"`
-		Rpcs           []string `json:"rpcs,omitempty"`
-		BackCheck      int      `json:"back_check,omitempty"`
-		AlertThreshold int      `json:"alert_threshold,omitempty"`
-		Interval       int      `json:"interval,omitempty"`
-		StallTime      int      `json:"stall_time,omitempty"`
-		RpcAlert       bool     `json:"rpc_alert,omitempty"`
+		Name           string   `json:"name"`
+		ChainId        string   `json:"chain_id"`
+		Address        string   `json:"address"`
+		Rpcs           []string `json:"rpcs"`
+		RpcAlert       bool     `json:"rpc_alert"`
+		SignerMetrics  string   `json:"signer_metrics"`
+		SignerStallMins int     `json:"signer_stall_mins"`
+		BackCheck      int      `json:"back_check"`
+		AlertThreshold int      `json:"alert_threshold"`
+		Interval       int      `json:"interval"`
+		StallTime      int      `json:"stall_time"`
+	}
+
+	Health struct {
+		Interval int      `json:"interval"`
+		Port     string   `json:"port"`
+		Nodes    []string `json:"nodes"`
 	}
 
 	Notifiers struct {
 		Telegram struct {
-			Key  string `json:"key,omitempty"`
-			Chat string `json:"chat_id,omitempty"`
-		} `json:"telegram,omitempty"`
+			Key  string `json:"key"`
+			Chat string `json:"chat_id"`
+		} `json:"telegram"`
 		Discord struct {
 			Webhook string `json:"webhook"`
 		} `json:"discord"`
-	}
-
-	Validators struct {
-		Moniker string `json:"moniker,omitempty"`
-		Address string `json:"address,omitempty"`
 	}
 )
